@@ -1,12 +1,21 @@
 import argparse
 
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 parser = argparse.ArgumentParser(description='Process timeseries with EMD.')
 parser.add_argument('--imfs', '--im', type=int, default=1,help='max imfs from EMD')
 parser.add_argument('--timesteps', '--t', type=int, default=24, help='timesteps for secuense (default=24)')
 parser.add_argument('--outputs', '--o', type=int, default=169, help='values predited for secuense (default=168)')
 parser.add_argument('input_path', help="input path for the timeseries.")
 parser.add_argument('output_path', help="output directory.")
-
+parser.add_argument("--debug",type=str2bool, default=False)
 args = parser.parse_args()
 
 from PyEMD import EMD
@@ -39,25 +48,39 @@ def create_data_cube(data,input_dim=24, output_dim = 12, timesteps=720):
     B = None
     return X,y
 
+print("Creating EMD for {} with {} imfs and {} timesteps".format(os.path.basename(args.input_path), args.imfs,args.timesteps))
 timesteps=args.timesteps
 emd_dim = args.imfs
 data = pd.Series.from_csv(args.input_path).values
-
+if args.debug:
+    data = data[:1000]
+print("splitting data...",end="")
 X,y = create_data_cube(data, input_dim=1, output_dim=args.outputs, timesteps=timesteps)
-
-X_new = np.empty((X.shape[0], X.shape[1],emd_dim+1))
+print("end")
+X_new = np.empty((X.shape[0], X.shape[1],emd_dim+2))
 emd = EMD()
 bar = progressbar.ProgressBar(max_value = X.shape[0])
+print("decomposing data...")
 for i in range(X.shape[0]):
     timeseries = X[i,:,0]
     X_new[i,:,0] = X[i,:,0]
-    X_new[i,:,:] = emd.emd(timeseries,max_imf = emd_dim).T
-    bar.update(i)
+    try:
+        emds = emd.emd(timeseries,max_imf = emd_dim).T
+        X_new[i,:,1:] = emds
+        bar.update(i)
+    except ValueError:
+        f = open("not_processed.csv", "a+")
+        filename = os.path.basename(args.input_path).replace(".csv","")
+        f.write("{},{},{}\n".format(filename,emd_dim,timesteps))
+        f.close()
+
 
 filename = os.path.basename(args.input_path).replace(".csv","")
 base_dir = args.output_path if args.output_path[-1] == "/" else args.output_path + "/"
 
+print("saving results..",end="")
 os.makedirs(base_dir, exist_ok=True)
 
-np.save(base_dir+"X_{}_{}_imfs_{}_timesteps".format(filename,emd_dims,timesteps),X_new)
-np.save(base_dir+"y_{}_{}_imfs_{}_timesteps".format(filename,emd_dims,timesteps),y)
+np.save(base_dir+"X_{}_{}_imfs_{}_timesteps".format(filename,emd_dim+1,timesteps),X_new)
+np.save(base_dir+"y_{}_{}_imfs_{}_timesteps".format(filename,emd_dim+1,timesteps),y)
+print("finished")
