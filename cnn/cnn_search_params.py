@@ -3,6 +3,7 @@ import argparse
 parser = argparse.ArgumentParser(description='Run LSTM.')
 parser.add_argument('path', help='File path')
 parser.add_argument('output_path', help='File path')
+parser.add_argument('--preproc', default="std", help='File path')
 args = parser.parse_args()
 
 import numpy as np
@@ -23,7 +24,7 @@ import os
 
 batch_size = 1200
 epochs = 10
-verbose = True
+verbose = False 
 train_perc = 0.8
 
 output_path = args.output_path
@@ -32,7 +33,7 @@ path = args.path
 filename = os.path.basename(path).split("_")
 source = filename[1]
 
-preprocess= "minmax"
+preprocess= args.preproc
 
 os.makedirs(output_path,exist_ok=True)
 
@@ -82,7 +83,7 @@ else:
 for i in range(timesteps):
     X_train[:,i,:] = preproc_in.transform(X_train[:,i,:]) if preproc_in else X_train
     X_test[:,i,:] = preproc_in.transform(X_test[:,i,:]) if preproc_in else X_test
-y_train_process = preproc_out.transform(y_train[:,0].reshape(-1,1)) if preproc_out else y_train[:,0].reshape(-1,1)
+y_train = preproc_out.transform(y_train[:,0].reshape(-1,1)) if preproc_out else y_train[:,0].reshape(-1,1)
 
 
 
@@ -114,23 +115,17 @@ print("Evaluating Models")
 y_metrics = np.zeros(len(params))
 for i,param in enumerate(params):
     print(param)
-    y_approx = np.zeros_like(y_test)
-    for i in range(y_test.shape[1]):
-        np.random.seed(42)
-        model = create_model(**param)
-        model.compile(loss='mean_squared_error',
+    np.random.seed(42)
+    model = create_model(**param)
+    model.compile(loss='mean_squared_error',
                   optimizer='adam')
 
-        model.fit(X_train,y_train[:,i], batch_size=batch_size, epochs=epochs,verbose=verbose)
-        models.append(model)
-
-        y_iter = preproc_out.inverse_transform(model.predict(X_test))
-        y_approx[:,i] = y_iter[:,0]
-        del model
-        K.clear_session()
-    y_metric = metrics.mean_squared_error(y_test,y_approx)
+    model.fit(X_train,y_train[:,0], batch_size=batch_size, epochs=epochs,verbose=verbose)
+    y_approx = preproc_out.inverse_transform(model.predict(X_test))
+    
+    K.clear_session()
+    y_metric = metrics.mean_squared_error(y_test[:,0],y_approx)
     y_metrics[i] = y_metric
-
 
 p = []
 for param in params:
@@ -139,5 +134,5 @@ p = pd.DataFrame(p)
 
 
 p["score"] = y_metrics
-
-p.to_csv(output_path+"{}_{}_imfs_{}_timesteps.csv".format(source,imfs,timesteps))
+p["preprocess"] = preprocess
+p.to_csv(output_path+"{}_{}_preproc_{}_imfs_{}_timesteps.csv".format(source,preprocess,imfs,timesteps))
