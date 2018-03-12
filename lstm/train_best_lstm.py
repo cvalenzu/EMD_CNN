@@ -11,8 +11,7 @@ def str2bool(v):
 parser = argparse.ArgumentParser(description='Run LSTM.')
 parser.add_argument('path', help='File path')
 parser.add_argument('output', help='Output path')
-parser.add_argument('--epochs', default=10, help="Input Values", type=int)
-parser.add_argument('--preprocess', default="minmax_1", help="minmax or standarization")
+parser.add_argument('--epochs', default=100, help="Input Values", type=int)
 parser.add_argument('--verbose', default=False, help="Verbose Keras LSTM", type=str2bool)
 args = parser.parse_args()
 
@@ -35,7 +34,7 @@ dataPath = args.path
 output = args.output if args.output[-1] == "/" else args.output + "/"
 train_perc = 0.8
 batch_size = 1200
-epochs = 10
+epochs = args.epochs
 preprocess = args.preprocess
 stateful = False
 verbose = args.verbose
@@ -43,9 +42,7 @@ verbose = args.verbose
 
 os.makedirs(args.output, exist_ok=True)
 
-filename = os.path.basename(dataPath).replace(".csv","").split("_")
-source = filename[1]
-
+params = pd.read_csv()
 
 print("Reading Data")
 X = np.load(args.path)
