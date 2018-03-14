@@ -33,7 +33,7 @@ from keras import backend as K
 from PyEMD import EMD
 import progressbar
 
-dataPath = args.emd_path if args.output[-1] == "/" else args.output + "/"
+dataPath = args.emd_path if args.emd_path[-1] == "/" else args.emd_path + "/"
 output = args.output if args.output[-1] == "/" else args.output + "/"
 train_perc = 0.8
 batch_size = 1200
@@ -53,10 +53,11 @@ def create_lstm(input_dim,output_dim,timesteps, nodes,loss='mean_squared_error',
 
 def n_predict(model,X,h=169):
     n = X.shape[0]
-    imfs = X.shape[2] - 1
+    imfs = X.shape[2] - 2
     timesteps = X.shape[1]
     y_approx = np.empty((n, h))
-    X_new = np.empty((n,timesteps+h,imfs+1))
+    X_new = np.empty((n,timesteps+h,imfs+2))
+    X_new[:,:timesteps,:] = X
     emd = EMD()
     bar = progressbar.ProgressBar(max_value = h*n)
     bar.start()
@@ -65,9 +66,9 @@ def n_predict(model,X,h=169):
         predict = model.predict(X_new[:,:timesteps+i,:],batch_size=batch_size)
         X_new[:,timesteps+i,0] = predict[:,0]
         for j in range(n):
-            timeseries = X_new[i,:,0]
+            timeseries = X_new[j,:timesteps+i,0]
             emds = emd.emd(timeseries,max_imf = imfs).T
-            X_new[j,:,1:] = emds
+            X_new[j,:timesteps+i,1:] = emds#[:,1:]
             iter +=1
             bar.update(iter)
 
@@ -76,6 +77,9 @@ def n_predict(model,X,h=169):
     return y_approx
 
 for index,param in params.iterrows():
+    if param["timesteps"] <= 24 or param["input_dim"]<=2:
+        continue
+    print(param)
     preprocess = param["preproc"]
     print("Reading Data")
     dataFile = dataPath+"X_canela_{}_imfs_{}_timesteps.npy".format(param["input_dim"]-1, param["timesteps"])
@@ -160,4 +164,3 @@ for index,param in params.iterrows():
 
     del model
     K.clear_session()
-    break
