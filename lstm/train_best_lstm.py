@@ -32,6 +32,8 @@ from keras import backend as K
 
 from PyEMD import EMD
 import progressbar
+import numpy.polynomial.polynomial as poly
+
 
 dataPath = args.emd_path if args.emd_path[-1] == "/" else args.emd_path + "/"
 output = args.output if args.output[-1] == "/" else args.output + "/"
@@ -66,9 +68,13 @@ def n_predict(model,X,h=169):
         predict = model.predict(X_new[:,:timesteps+i,:],batch_size=batch_size)
         X_new[:,timesteps+i,0] = predict[:,0]
         for j in range(n):
-            timeseries = X_new[j,:timesteps+i,0]
-            emds = emd.emd(timeseries,max_imf = imfs).T
-            X_new[j,:timesteps+i,1:] = emds#[:,1:]
+            value = X_new[j,timesteps+i,0]
+            for imf in range(1,X.shape[2]):
+                a = X_new[j,:timesteps+i,0]
+                b = X_new[j,:timesteps+i,imf]
+                coefs = poly.polyfit(a, b, 3)
+                ffit = poly.polyval(value, coefs)
+                X_new[j,timesteps+i,imf] = ffit
             iter +=1
             bar.update(iter)
 
@@ -77,8 +83,8 @@ def n_predict(model,X,h=169):
     return y_approx
 
 for index,param in params.iterrows():
-    if param["timesteps"] <= 24 or param["input_dim"]<=2:
-        continue
+    # if param["timesteps"] <= 24 or param["input_dim"]<=2:
+    #     continue
     print(param)
     preprocess = param["preproc"]
     print("Reading Data")
