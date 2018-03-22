@@ -42,41 +42,31 @@ except:
     progressbar = None
 
 
-def create_data_cube(data,input_dim=24, output_dim = 12, timesteps=720):
-    m = len(data)
+def create_data_cube(data,input_dim = 22, output_dim = 12, timesteps=720):
+    m,input_dim = data.shape
 
-    A = np.empty((m,input_dim))
-    B = np.empty((m, output_dim))
+    X = np.empty((m,timesteps,input_dim))
+    y = np.empty((m,output_dim,input_dim))
 
     try:
-        for i in range(m):
-            window = data[i+input_dim:i:-1]
-            A[i,:] = window
-            B[i,:] = data[i+input_dim:i+input_dim+output_dim]
+        for i,t in enumerate(range(timesteps,m)):
+            X[i,:,:] = data[t-timesteps:t, :]
+            y[i,:] = data[t:t+output_dim,:]
     except:
-        A = A[:i,:]
-    X = np.empty((i-timesteps, timesteps, input_dim))
-    y = np.empty((i-timesteps, output_dim))
-    for j in range(timesteps):
-        X[:,j,:] = A[j:i-(timesteps-j),:]
-
-    for a in range(i-(timesteps)):
-        y[a,:] = B[a+timesteps,:]
-    A = None
-    B = None
+        X = X[:i,:,:]
+        y = y[:i,:,:]
     return X,y
-
 
 def n_predict(model, X,output_dim=169,batch_size=1200):
     if progressbar:
         bar = progressbar.ProgressBar(max_value=output_dim)
         bar.start()
     n,lags,input_dim = X.shape
-    y_approx = np.empty((n,output_dim))
+    y_approx = np.empty((n,output_dim,input_dim))
     for i in range(output_dim):
         y_i = model.predict(X,batch_size=batch_size)
 
-        y_approx[:,i] = y_i[:,0]
+        y_approx[:,i,:] = y_i
 
         X = np.roll(X, 1, axis=1)
         X[:,-1,:] = y_i
@@ -106,7 +96,7 @@ def create_cnn(layers, filters, lags,timesteps,imfs, activation = "relu"):
     flat = Flatten()(x)
 
 
-    out = Dense(1,activation="linear")(flat)
+    out = Dense(imfs,activation="linear")(flat)
     cnn = Model(input_ts,out)
     return cnn
 
@@ -125,7 +115,7 @@ preprocess= args.preprocess
 
 os.makedirs(output_path,exist_ok=True)
 
-data = pd.Series.from_csv(path)
+data = np.loadtxt(args.path)
 X, y = create_data_cube(data,input_dim=1, output_dim=output_dim, timesteps = timesteps)
 
 
@@ -133,10 +123,16 @@ n = X.shape[0]
 timesteps = X.shape[1]
 imfs = X.shape[2]
 
-train_len = int(train_perc*n)
-val_len = int(train_perc*train_len)
-X_train, X_test = X[:val_len], X[val_len:train_len]
-y_train, y_test = y[:val_len,0].reshape(-1,1), y[val_len:train_len]
+trainlen1 = int(train_perc*len(X))
+trainlen = int(train_perc*trainlen1)
+print("Removed from train ", (trainlen%batch_size), " values")
+trainlen = trainlen - (trainlen%batch_size)
+vallen = trainlen1 - trainlen
+print("Removed from validation ", (vallen%batch_size), " values")
+vallen = vallen - (vallen%batch_size)
+
+X_train,X_test = X[:trainlen], X[trainlen:trainlen+vallen]
+y_train,y_test = y[:trainlen,0], y[trainlen:trainlen+vallen]
 
 if "minmax" in preprocess:
     print("Using Minmax Scaler with feature range ", end="")
@@ -169,18 +165,20 @@ else:
 for i in range(timesteps):
     X_train[:,i,:] = preproc_in.transform(X_train[:,i,:]) if preproc_in else X_train
     X_test[:,i,:] = preproc_in.transform(X_test[:,i,:]) if preproc_in else X_test
-y_train_process = preproc_out.transform(y_train[:,0].reshape(-1,1)) if preproc_out else y_train[:,0].reshape(-1,1)
+y_train = preproc_out.transform(y_train) if preproc_out else y_train
 
 
+print("Creating Param List")
 activations = ["tanh", "sigmoid"]#["relu", "tanh", "sigmoid"]
-filters = np.arange(2,10)
-lags = np.arange(6,49,6)
+filters = [2]#np.arange(2,10)
+lags = [6]#np.arange(6,49,6)
 param_grid = {"timesteps":[timesteps], "imfs": [imfs],"activation": activations,
               "filters":filters,"lags":lags, "layers":[int(np.log2(timesteps))]}
 params = ms.ParameterGrid(param_grid)
 
 print("Training Models")
 scores = []
+print(len(params))
 for param in params:
     print(param)
     np.random.seed(42)
@@ -197,7 +195,7 @@ for param in params:
 
     try:
         for i in range(output_dim):
-            y_approx[:,i] = preproc_out.inverse_transform(y_approx[:,i].reshape(-1,1)).reshape(-1)
+            y_approx[:,i,:] = preproc_out.inverse_transform(y_approx[:,i,:])
     except ValueError:
         print("Inverse Transform Error")
         K.clear_session()
@@ -205,7 +203,7 @@ for param in params:
         continue
 
 
-    score = metrics.mean_squared_error(y_test,y_approx)
+    score = metrics.mean_squared_error( np.sum(y_test,axis=2), np.sum(y_approx,axis=2))
 
 
     param["score"] = score
