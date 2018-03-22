@@ -89,8 +89,6 @@ def n_predict(model,X,input_dim = 22,steps=12, batch_size=168):
     return y
 
 
-emd = EMD()
-
 print("Reading Data")
 #Data split parameters
 data = np.loadtxt(dataPath)

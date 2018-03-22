@@ -34,28 +34,19 @@ import progressbar
 import numpy.polynomial.polynomial as poly
 
 
-def create_data_cube(data,input_dim=24, output_dim = 12, timesteps=720):
-    m = len(data)
+def create_data_cube(data,input_dim = 22, output_dim = 12, timesteps=720):
+    m,input_dim = data.shape
 
-    A = np.empty((m,input_dim))
-    B = np.empty((m, output_dim))
+    X = np.empty((m,timesteps,input_dim))
+    y = np.empty((m,output_dim,input_dim))
 
     try:
-        for i in range(m):
-            window = data[i+input_dim:i:-1]
-            A[i,:] = window
-            B[i,:] = data[i+input_dim:i+input_dim+output_dim]
+        for i,t in enumerate(range(timesteps,m)):
+            X[i,:,:] = data[t-timesteps:t, :]
+            y[i,:] = data[t:t+output_dim,:]
     except:
-        A = A[:i,:]
-    X = np.empty((i-timesteps, timesteps, input_dim))
-    y = np.empty((i-timesteps, output_dim))
-    for j in range(timesteps):
-        X[:,j,:] = A[j:i-(timesteps-j),:]
-
-    for a in range(i-(timesteps)):
-        y[a,:] = B[a+timesteps,:]
-    A = None
-    B = None
+        X = X[:i,:,:]
+        y = y[:i,:,:]
     return X,y
 
 
@@ -88,13 +79,15 @@ def n_predict(model,X,steps=12, batch_size=168):
 
 
 #Load data
-data = pd.Series.from_csv("../data/canela.csv")
+data = np.loadtxt(dataPath)
+input_dim = data.shape[1]
+
 for index,param in params.iterrows():
     preprocess = param["preproc"]
     input_dim = param["input_dim"]
     timesteps = param["timesteps"]
     output_dim = param["output_dim"]
-    X,y = create_data_cube(data, input_dim=input_dim,timesteps=timesteps, output_dim = output_dim)
+    X,y = create_data_cube(data,input_dim=input_dim, timesteps=timesteps, output_dim = output_dim)
 
     n = X.shape[0]
     timesteps = X.shape[1]
@@ -114,7 +107,7 @@ for index,param in params.iterrows():
     X_test = X_test[:m,:]
     y_test = y_test[:m,:]
 
-    print(X_test.shape[0]%batch_size) 
+    print(X_test.shape[0]%batch_size)
     print("Preprocessing Data")
     if "minmax" in preprocess:
         print("Using Minmax Scaler with feature range ", end="")
@@ -157,11 +150,10 @@ for index,param in params.iterrows():
     print("Fitting Model")
     model.fit(X_train, y_train,shuffle=False,verbose=verbose, epochs=epochs, batch_size=batch_size)
     y_approx = n_predict(model,X_test,batch_size=batch_size,steps=output_dim)
-    
-    for j in range(output_dim):
-        y_approx[:,j] = preproc_out.inverse_transform(y_approx[:,j].reshape(-1,1)).reshape(-1)
-    
-    score = metrics.mean_squared_error(y_test,y_approx)
+
+    for i in range(output_dim):
+        y_approx[:,i,:] =  preproc_out.inverse_transform(y_approx[:,i,:])
+    score = metrics.mean_squared_error( np.sum(y_test,axis=2), np.sum(y_approx,axis=2))
 
     print("Score Validation: ",score)
     param["score"] = score
