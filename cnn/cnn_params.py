@@ -173,7 +173,7 @@ y_train_process = preproc_out.transform(y_train[:,0].reshape(-1,1)) if preproc_o
 
 
 activations = ["tanh", "sigmoid"]#["relu", "tanh", "sigmoid"]
-filters = np.arange(2,10)
+filters = [3,5,7]#np.arange(2,10)
 lags = np.arange(6,49,6)
 param_grid = {"timesteps":[timesteps], "imfs": [imfs],"activation": activations,
               "filters":filters,"lags":lags, "layers":[int(np.log2(timesteps))]}

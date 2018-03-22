@@ -170,8 +170,8 @@ y_train = preproc_out.transform(y_train) if preproc_out else y_train
 
 print("Creating Param List")
 activations = ["tanh", "sigmoid"]#["relu", "tanh", "sigmoid"]
-filters = [2]#np.arange(2,10)
-lags = [6]#np.arange(6,49,6)
+filters = [3,5,7]
+lags = np.arange(6,49,6)
 param_grid = {"timesteps":[timesteps], "imfs": [imfs],"activation": activations,
               "filters":filters,"lags":lags, "layers":[int(np.log2(timesteps))]}
 params = ms.ParameterGrid(param_grid)
