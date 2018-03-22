@@ -2,10 +2,10 @@
 export CUDA_VISIBLE_DEVICES=0
 
 
-files=`ls -1 /mnt/cvalenzu/EMDS/canela/X*`
+timesteps=( 24 48 72 168 336 672 )
 preproc=( std minmax1 minmax2 )
-for file in ${files[@]};do
+for ts in ${timesteps[@]};do
 	for pre in ${preproc[@]};do
-		python cnn_search_params.py $file results --preproc $pre
+		python cnn_params.py  ../data/canela.csv  results_cnn --timesteps $ts --train_perc 0.8 --batch_size 1200 --preproc $pre --epochs 10 --verbose t
 	done
 done
