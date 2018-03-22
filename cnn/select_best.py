@@ -1,0 +1,42 @@
+import glob
+import pandas as pd
+
+
+files = glob.glob("results_cnn/*.csv")
+
+dfs = []
+
+for file in files:
+	df = pd.read_csv(file,index_col = 0)
+	best = df.sort_values("score").iloc[0,:]
+	dfs.append(best)
+dfs = pd.DataFrame(dfs)
+
+bests = []
+for timestep,df in dfs.groupby(["timesteps"]):
+	best = df.sort_values("score").iloc[0,:]
+	bests.append(best)
+
+bests = pd.DataFrame(bests)
+
+bests.to_csv("best_params.csv")
+
+#results_cnn_emd
+files = glob.glob("results_cnn_emd/*.csv")
+
+dfs = []
+
+for file in files:
+        df = pd.read_csv(file,index_col = 0)
+        best = df.sort_values("score").iloc[0,:]
+        dfs.append(best)
+dfs = pd.DataFrame(dfs)
+
+bests = []
+for timestep,df in dfs.groupby(["timesteps"]):
+        best = df.sort_values("score").iloc[0,:]
+        bests.append(best)
+
+bests = pd.DataFrame(bests)
+
+bests.to_csv("best_params_emd.csv")
