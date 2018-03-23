@@ -187,7 +187,15 @@ for index,param in params.iterrows():
     model.compile(optimizer="adadelta", loss="mean_squared_error")
     model.fit(X_train, y_train,shuffle=False,verbose=verbose, epochs=epochs, batch_size=batch_size)
     y_approx = n_predict(model,X_test,output_dim=output_dim,batch_size = batch_size)
-
+    try:
+        for i in range(output_dim):
+            y_approx[:,i] = preproc_out.inverse_transform(y_approx[:,i].reshape(-1,1)).reshape(-1)
+    except ValueError:
+        print("Inverse Transform Error")
+        K.clear_session()
+        del model
+        continue
+    
     score = metrics.mean_squared_error(y_test,y_approx)
 
     print("Score Validation: ",score)
